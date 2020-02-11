@@ -25,17 +25,19 @@ public class TestSqlDao {
     public Map<Long, Long> getMaxUserOrderId(long idStore) throws SQLException {
     	// we do no need synchronized map, since we create a new instance from it in the method
 		// we should use cache if we need to persist the result between calls
-        Map<Long, Long> maxOrderUser = new HashMap<>();
+        final Map<Long, Long> maxOrderUser = new HashMap<>();
 
         // we should use dbms capabilities to reduce the returned result set
-        String query = String.format(
+        // note: here we could aggregate also for date column from orders table if the id of the order is not the last order
+        final String query = String.format(
                 "SELECT ID_USER, MAX(ID_ORDER) as ID_ORDER " +
-                        "FROM ORDERS WHERE ID_STORE = %s " +
+                        "FROM ORDERS " +
+                        "WHERE ID_STORE = %s " +
                         "GROUP_BY ID_USER", idStore);
 
-        Connection connection = getConnection();
+        final Connection connection = getConnection();
 
-        // we should release resources, we can use the new try with resources to do it so
+        // we should release resources after finished, we can use the new try-with-resources to do it so
 		try (ResultSet rs = connection.prepareStatement(query).executeQuery()) {
 			// ids are long not int
 			while (rs.next()) {
