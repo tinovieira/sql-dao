@@ -1,8 +1,6 @@
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.Hashtable;
+import java.sql.*;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Improve the SQL or code in the methods when necessary
@@ -11,101 +9,100 @@ import java.util.Hashtable;
  */
 public class TestSqlDao {
 
-	private static TestSqlDao instance = new TestSqlDao();
-	private Hashtable<Long, Long> maxOrderUser;
-	
-	private TestSqlDao() {
+    private static TestSqlDao instance = new TestSqlDao();
 
-	}
+    private TestSqlDao() {
 
-	private static TestSqlDao getInstance() {
+    }
 
-		return instance;
-	}
+    private static TestSqlDao getInstance() {
+        return instance;
+    }
 
-	/**
-	 * Obtains the ID of the last order for each user
-	 */
-	public Hashtable<Long, Long> getMaxUserOrderId(long idStore) throws SQLException {
+    /**
+     * Obtains the ID of the last order for each user
+     */
+    public Map<Long, Long> getMaxUserOrderId(long idStore) throws SQLException {
+    	// we do no need synchronized map, since we create a new instance from it in the method
+		// we should use cache if we need to persist the result between calls
+        Map<Long, Long> maxOrderUser = new HashMap<>();
 
-		String query = String.format("SELECT ID_ORDER, ID_USER FROM ORDERS WHERE ID_STORE = %s", idStore);
-		Connection connection = getConnection();
-		PreparedStatement stmt = connection.prepareStatement(query);
-		ResultSet rs = stmt.executeQuery();
-		maxOrderUser = new Hashtable<Long, Long>();
-		
-		while (rs.next()) {
+        // we should use dbms capabilities to reduce the returned result set
+        String query = String.format(
+                "SELECT ID_USER, MAX(ID_ORDER) as ID_ORDER " +
+                        "FROM ORDERS WHERE ID_STORE = %s " +
+                        "GROUP_BY ID_USER", idStore);
 
-			long idOrder = rs.getInt("ID_ORDER");
-			long idUser = rs.getInt("ID_USER");
-			
-			if (!maxOrderUser.containsKey(idUser)) {
+        Connection connection = getConnection();
 
+        // we should release resources, we can use the new try with resources to do it so
+		try (ResultSet rs = connection.prepareStatement(query).executeQuery()) {
+			// ids are long not int
+			while (rs.next()) {
+				long idUser = rs.getLong("ID_USER");
+				long idOrder = rs.getLong("ID_ORDER");
 				maxOrderUser.put(idUser, idOrder);
-
-			} else if (maxOrderUser.get(idUser) < idOrder ) {
-
-				maxOrderUser.put(idUser, idOrder );
 			}
 		}
 
 		return maxOrderUser;
-	}
+    }
 
-	/**
-	 * Copies all the results from one user to another
-	 */
-	public void copyUserOrders(long idUserSource, long idUserTarget) throws SQLException {
+    /**
+     * Copies all the results from one user to another
+     */
+    public void copyUserOrders(long idUserSource, long idUserTarget) throws SQLException {
 
-		String query = String.format("SELECT DATE, TOTAL, SUBTOTAL, ADDRESS FROM ORDERS WHERE ID_USER = %s", idUserSource);
-		Connection connection = getConnection();
-		PreparedStatement stmt = connection.prepareStatement(query);
-		ResultSet rs = stmt.executeQuery();
+        String query = String.format("SELECT DATE, TOTAL, SUBTOTAL, ADDRESS FROM ORDERS WHERE ID_USER = %s", idUserSource);
+        Connection connection = getConnection();
+        PreparedStatement stmt = connection.prepareStatement(query);
+        ResultSet rs = stmt.executeQuery();
 
-		while (rs.next()) {
+        while (rs.next()) {
 
-			String insert = String.format("INSERT INTO ORDERS (DATE, TOTAL, SUBTOTAL, ADDRESS) VALUES (%s, %s, %s, %s)",
-													rs.getTimestamp("DATE"),
-													rs.getDouble("TOTAL"),
-													rs.getDouble("SUBTOTAL"),
-													rs.getString("ADDRESS"));
+            String insert = String.format("INSERT INTO ORDERS (DATE, TOTAL, SUBTOTAL, ADDRESS) VALUES (%s, %s, %s, %s)",
+                    rs.getTimestamp("DATE"),
+                    rs.getDouble("TOTAL"),
+                    rs.getDouble("SUBTOTAL"),
+                    rs.getString("ADDRESS"));
 
-			Connection connection2 = getConnection();
-			connection2.setAutoCommit(false);
-			PreparedStatement stmt2 = connection2.prepareStatement(insert);
-			stmt2.executeUpdate();
-			connection2.commit();
-		}
-	}
+            Connection connection2 = getConnection();
+            connection2.setAutoCommit(false);
+            PreparedStatement stmt2 = connection2.prepareStatement(insert);
+            stmt2.executeUpdate();
+            connection2.commit();
+        }
+    }
 
-	/**
-	 * Obtains the user and order data with the id of the most expensive order of the store
-	 */
-	public void getUserMaxOrder(long idStore, long userId, long orderId, String name, String address) throws SQLException {
+    /**
+     * Obtains the user and order data with the id of the most expensive order of the store
+     */
+    public void getUserMaxOrder(long idStore, long userId, long orderId, String name, String address) throws SQLException {
 
-		String query = String.format("SELECT U.ID_USER, O.ID_ORDER, O.TOTAL, U.NAME, U.ADDRESS FROM ORDERS AS O "
-										+ "INNER JOIN USERS AS U ON O.ID_USERS = U.ID_USER WHERE O.ID_STORE = %", idStore);
-		Connection connection = getConnection();
-		PreparedStatement stmt = connection.prepareStatement(query);
-		ResultSet rs = stmt.executeQuery();
-		double total = 0;
+        String query = String.format("SELECT U.ID_USER, O.ID_ORDER, O.TOTAL, U.NAME, U.ADDRESS FROM ORDERS AS O "
+                + "INNER JOIN USERS AS U ON O.ID_USERS = U.ID_USER WHERE O.ID_STORE = %", idStore);
+        Connection connection = getConnection();
+        PreparedStatement stmt = connection.prepareStatement(query);
+        ResultSet rs = stmt.executeQuery();
+        double total = 0;
 
-		while (rs.next()) {
+        while (rs.next()) {
 
-			if (rs.getLong("TOTAL") > total) {
+            if (rs.getLong("TOTAL") > total) {
 
-				total = rs.getLong("TOTAL");
-				userId = rs.getInt("ID_USER");
-				orderId = rs.getInt("ID_ORDER");
-				name = rs.getString("NAME");
-				address = rs.getString("ADDRESS");
-			}
-		}
-	}
+                total = rs.getLong("TOTAL");
+                userId = rs.getInt("ID_USER");
+                orderId = rs.getInt("ID_ORDER");
+                name = rs.getString("NAME");
+                address = rs.getString("ADDRESS");
+            }
+        }
+    }
 
-	private Connection getConnection() {
+    private Connection getConnection() throws SQLException {
+        String user = "postgres";
+        String pass = "postgres";
+        return DriverManager.getConnection("jdbc:postgresql://localhost/online?user=" + user + "&password=" + pass);
+    }
 
-		// return JDBC connection
-		return null;
-	}
 }
