@@ -1,6 +1,7 @@
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.Hashtable;
 
 /**
@@ -25,7 +26,7 @@ public class TestSqlDao {
 	/**
 	 * Obtains the ID of the last order for each user
 	 */
-	public Hashtable<Long, Long> getMaxUserOrderId(long idStore) throws Exception {
+	public Hashtable<Long, Long> getMaxUserOrderId(long idStore) throws SQLException {
 
 		String query = String.format("SELECT ID_ORDER, ID_USER FROM ORDERS WHERE ID_STORE = %s", idStore);
 		Connection connection = getConnection();
@@ -54,7 +55,7 @@ public class TestSqlDao {
 	/**
 	 * Copies all the results from one user to another
 	 */
-	public void copyUserOrders(long idUserSource, long idUserTarget) throws Exception {
+	public void copyUserOrders(long idUserSource, long idUserTarget) throws SQLException {
 
 		String query = String.format("SELECT DATE, TOTAL, SUBTOTAL, ADDRESS FROM ORDERS WHERE ID_USER = %s", idUserSource);
 		Connection connection = getConnection();
@@ -80,7 +81,7 @@ public class TestSqlDao {
 	/**
 	 * Obtains the user and order data with the id of the most expensive order of the store
 	 */
-	public void getUserMaxOrder(long idStore, long userId, long orderId, String name, String address) throws Exception {
+	public void getUserMaxOrder(long idStore, long userId, long orderId, String name, String address) throws SQLException {
 
 		String query = String.format("SELECT U.ID_USER, O.ID_ORDER, O.TOTAL, U.NAME, U.ADDRESS FROM ORDERS AS O "
 										+ "INNER JOIN USERS AS U ON O.ID_USERS = U.ID_USER WHERE O.ID_STORE = %", idStore);
